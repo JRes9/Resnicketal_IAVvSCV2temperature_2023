@@ -1,0 +1,41 @@
+#!/bin/sh
+#SBATCH--mem=400G
+#SBATCH--cores-per-socket=8
+#SBATCH--time=96:0:0
+echo "I hope this works..."
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_3.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_1.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_1.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_2.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_2.sam
+samtools sort -@ 8 -o /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_3.bam /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_3.sam

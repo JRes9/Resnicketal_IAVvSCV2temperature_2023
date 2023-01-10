@@ -1,0 +1,79 @@
+#!/bin/sh
+#SBATCH --mem=400G
+#SBATCH --cores-per-socket=8
+#SBATCH --time=96:0:0
+echo "I hope this works..."
+echo "F2433_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F2433_1_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F2433_1_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_1.sam
+echo "F2433_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F2433_2_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F2433_2_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_2.sam
+echo "F2433_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F2433_3_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F2433_3_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2433_3.sam
+echo "F2437_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F2437_1_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F2437_1_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_1.sam
+echo"F2437_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F2437_2_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F2437_2_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_2.sam
+echo "F2437_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F2437_3_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F2437_3_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F2437_3.sam
+echo "F4833_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F4833_4_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F4833_4_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_1.sam
+echo "F4833_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F4833_5_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F4833_5_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_2.sam
+echo "F4833_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F4833_6_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F4833_6_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4833_3.sam
+echo "F4837_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F4837_4_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F4837_4_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_1.sam
+echo "F4837_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F4837_5_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F4837_5_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_2.sam
+echo "F4837_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/F4837_6_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/F4837_6_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/F4837_3.sam
+echo "S2433_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S2433_1_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S2433_1_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_1.sam
+echo "S2433_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S2433_2_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S2433_2_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_2.sam
+echo "S4833_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S2433_3_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S2433_3_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2433_3.sam
+echo "S2437_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S2437_1_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S2437_1_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_1.sam
+echo "S2437_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S2437_2_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S2437_2_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_2.sam
+echo "S2437_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S2437_3_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S2437_3_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S2437_3.sam
+echo "S4833_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S4833_4_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S4833_4_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_1.sam
+echo "S4833_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S4833_5_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S4833_5_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_2.sam
+echo "S4833_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S4833_6_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S4833_6_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4833_3.sam
+echo "S4837_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S4837_4_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S4837_4_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_1.sam
+echo "S4837_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S4837_5_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S4837_5_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_2.sam
+echo "S4837_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/S4837_6_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/S4837_6_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/S4837_3.sam
+echo "M2433_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M2433_1_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M2433_1_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_1.sam
+echo "M2433_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M2433_2_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M2433_2_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_2.sam
+echo "M2433_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M2433_3_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M2433_3_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2433_3.sam
+echo "M2437_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M2437_1_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M2437_1_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_1.sam
+echo "M2437_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M2437_2_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M2437_2_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_2.sam
+echo "M2437_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M2437_3_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M2437_3_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M2437_3.sam
+echo "M4833_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M4833_4_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M4833_4_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_1.sam
+:wq
+echo "M4833_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M4833_5_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M4833_5_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_2.sam
+echo "M4833_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M4833_6_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M4833_6_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4833_3.sam
+echo "M4837_1"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M4837_4_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M4837_4_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_1.sam
+echo "M4837_2"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M4837_5_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M4837_5_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_2.sam
+echo "M4837_3"
+hisat2 -p 8 --dta -x refgenome/ensemblgenome2/genome -1 /mnt/VolA/data/jresnic4/Temperature2/cat/M4837_6_R1.fastq.gz -2 /mnt/VolA/data/jresnic4/Temperature2/cat/M4837_6_R2.fastq.gz -S /mnt/VolA/data/jresnic4/Temperature2/hisatoutput/M4837_3.sam
+
