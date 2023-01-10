@@ -1,0 +1,1647 @@
+---
+title: "tempandinfection_rnaseq"
+output: html_document
+date: "2022-09-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("Biocmanager")
+
+BiocManager::install("DESeq2", force = TRUE)
+BiocManager::install("apeglm")
+BiocManager::install("gprofiler2")
+BiocManager::install("biomaRt")
+BiocManager::install("EnhancedVolcano")
+BiocManager::install("ggplot2")
+BiocManager::install("featureCounts")
+BiocManager::install("Rsubread")
+
+BiocManager::install("pheatmap")
+BiocManager::install("RColorBrewer")
+BiocManager::install("corrplot")
+BiocManager::install("gprofiler2")
+BiocManager::install("clusterProfiler", force = TRUE)
+BiocManager::install("enrichplot", force = TRUE)
+BiocManager::install("DOSE", force = TRUE)
+BiocManager::install("pcaExplorer", force = TRUE)
+
+```
+```{r}
+#create gene count matrix
+library(Rsubread)
+
+
+files <- list.files(path = "/Users/pekosz-lab/Desktop/Jess/tempinfect", pattern = ".bam", full.names = TRUE, recursive = FALSE)
+
+getInBuiltAnnotation(annotation = "hg38")
+counttable <- featureCounts(files,
+                            #annotation
+                            annot.inbuilt = "hg38",
+                            annot.ext = NULL,
+                            isGTFAnnotationFile = FALSE,
+                            GTF.featureType = "exon",
+                            GTF.attrType.extra = NULL,
+                            chrAliases = NULL,
+                            #level of summarization
+                            useMetaFeatures = TRUE,
+                            #overlap between reads and features
+                            allowMultiOverlap = TRUE, #changed this to true
+                            minOverlap = 1,
+                            fracOverlap = 0,
+                            fracOverlapFeature = 0,
+                            largestOverlap = FALSE,
+                            nonOverlap = NULL,
+                            nonOverlapFeature = NULL,
+                            #read shift, extension and reduction
+                            readShiftType = "upstream",
+                            readShiftSize = 0,
+                            readExtension5 =0,
+                            readExtension3 = 0,
+                            read2pos = NULL,
+                            # multi-mapping reads
+                            countMultiMappingReads = TRUE,
+                            #fractional counting
+                            fraction = FALSE, #do not change, DESeq2 needs integers
+                            #long reads
+                            isLongRead = FALSE,
+                            #read filtering
+                            minMQS = 0,
+                            splitOnly = FALSE,
+                            nonSplitOnly = FALSE,
+                            primaryOnly = FALSE,
+                            ignoreDup = FALSE,
+                            #strandedness
+                            strandSpecific = 0,#unstranded
+                            #exon- exon junctions
+                            juncCounts = FALSE,
+                            genome = NULL,
+                            #parameters specific to paired end reads
+                            isPairedEnd = TRUE,
+                            requireBothEndsMapped = FALSE,
+                            checkFragLength = FALSE,
+                            minFragLength = 50,
+                            #maxFraglength = 600,
+                            countChimericFragments = TRUE,
+                            autosort = TRUE,
+                            #number of CPU threads
+                            nthreads = 1,
+                            #read group
+                            byReadGroup = FALSE,
+                            #report assignment result for each read
+                            #reportReads = FALSE,
+                            reportReadsPath = NULL,
+                            #miscellaneous
+                            maxMOp = 10,
+                            tmpDir = ".",
+                            verbose = FALSE)
+write.table(counttable$counts, file="tempinfectfeaturecountedit.txt", sep="\t")
+#manually format and resave as csv for next step
+                          
+
+```
+```{r}
+#annotate feature count file
+
+data <- read.csv("tempinfectfeaturecountedit.csv")
+data$gene_ID <- as.character(data$gene_ID)
+
+library("gprofiler2")
+#data$gene_ID <- sapply( strsplit ( rownames(res), split= "\\+" ), "[", 1)
+
+library("biomaRt")
+ensembl = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+genemap <- getBM(attributes = c("entrezgene_id", "hgnc_symbol", "external_gene_name", "description"),
+                  filters = "entrezgene_id",
+                  values = data$gene_ID,
+                  mart = ensembl)
+idx <- match (data$gene_ID, genemap$entrezgene_id)
+copydata <- data
+copydata$hgnc_symbol <- genemap$hgnc_symbol[ idx ]
+copydata$external_gene_name <- genemap$external_gene_name[ idx ]
+copydata$description <- genemap$description[idx]
+
+write.table(copydata, file="tempinfectfeaturecounteditwithnames.csv", sep="\t")
+
+```
+
+```{r}
+setwd("/Users/pekosz-lab/Desktop/Jess/")
+library(DESeq2)
+library(apeglm)
+
+#read in data and info
+data <- read.csv("tempinfectfeaturecountedit.csv")
+data$gene_ID <- as.character(data$gene_ID)
+sampleinfo <- read.csv("tempinfectcoldata.csv")
+
+
+#format matrix
+countDataMatrix <- as.matrix(data[ , -1])
+rownames(countDataMatrix) <- data[ ,1]
+
+
+
+deseqdata <- DESeqDataSetFromMatrix(countData = countDataMatrix, colData = sampleinfo, design =~condition)
+
+#perform differential expression
+dds <-DESeq(deseqdata, test = "Wald")
+
+#save results
+res <- results(dds)
+head(res)
+summary(res)
+
+#independent comparisons, 1st one is numerator
+flutemp48 <- results(dds, contrast = c("condition", "F4833", "F4837"))
+summary(flutemp48)
+write.csv(as.data.frame(flutemp48), file = "flutemp48results.csv")
+
+scvtemp48 <- results(dds, contrast = c("condition", "S4833", "S4837" ))
+summary(scvtemp48)
+write.csv(as.data.frame(scvtemp48), file = "scvtemp48results.csv")
+
+mocktemp48 <- results(dds, contrast = c("condition", "M4833", "M4837"))
+summary(mocktemp48)
+write.csv(as.data.frame(mocktemp48), file = "mocktemp48results.csv")
+
+fluvscv4833 <- results(dds, contrast = c("condition", "F4833", "S4833"))
+summary(fluvscv4833)
+write.csv(as.data.frame(fluvscv4833), file = "fluvscv4833results.csv")
+
+fluvscv4837 <- results(dds, contrast = c("condition", "F4837", "S4837"))
+summary(fluvscv4837)
+write.csv(as.data.frame(fluvscv4837), file = "fluvscv4837results.csv")
+
+fluvmock4837 <- results(dds, contrast = c("condition", "F4837", "M4837"))
+summary(fluvmock4837)
+write.csv(as.data.frame(fluvmock4837), file = "fluvmock4837results.csv")
+
+scvvmock4837 <- results(dds, contrast = c("condition", "S4837", "M4837"))
+summary(scvvmock4837)
+write.csv(as.data.frame(scvvmock4837), file = "scvvmock4837results.csv")
+
+fluvmock4833 <- results(dds, contrast = c("condition", "F4833", "M4833"))
+summary(fluvmock4833)
+write.csv(as.data.frame(fluvmock4833), file = "fluvmock4833results.csv")
+
+scvvmock4833 <- results(dds, contrast = c("condition", "S4833", "M4833"))
+summary(scvvmock4833)
+write.csv(as.data.frame(scvvmock4833), file = "scvvmock4833results.csv")
+
+```
+```{r}
+#addgenenames
+#make new variable jsut in case
+resflutemp48 <- results(dds, contrast = c("condition", "F4833", "F4837"))
+summary(resflutemp48)
+resflutemp24 <- results(dds, contrast = c("condition", "F2433", "F2437"))
+summary(resflutemp24)
+
+resscvtemp48 <- results(dds, contrast = c("condition", "S4833", "S4837" ))
+summary(resscvtemp48)
+resscvtemp24 <- results(dds, contrast = c("condition", "S2433", "S2437" ))
+summary(resscvtemp24)
+
+resmocktemp48 <- results(dds, contrast = c("condition", "M4833", "M4837"))
+summary(resmocktemp48)
+resmocktemp24 <- results(dds, contrast = c("condition", "M2433", "M2437"))
+summary(resmocktemp24)
+
+resfluvscv4833 <- results(dds, contrast = c("condition", "F4833", "S4833"))
+summary(resfluvscv4833)
+
+resfluvscv4837 <- results(dds, contrast = c("condition", "F4837", "S4837"))
+summary(resfluvscv4837)
+
+resfluvmock4837 <- results(dds, contrast = c("condition", "F4837", "M4837"))
+summary(resfluvmock4837)
+resfluvmock2437 <- results(dds, contrast = c("condition", "F2437", "M2437"))
+summary(resfluvmock4837)
+
+resscvvmock4837 <- results(dds, contrast = c("condition", "S4837", "M4837"))
+summary(resscvvmock4837)
+
+resfluvmock4833 <- results(dds, contrast = c("condition", "F4833", "M4833"))
+summary(resfluvmock4833)
+resfluvmock2433 <- results(dds, contrast = c("condition", "F2433", "M2433"))
+summary(resfluvmock2433)
+
+resscvvmock4833 <- results(dds, contrast = c("condition", "S4833", "M4833"))
+summary(resscvvmock4833)
+
+
+library("gprofiler2")
+res$ensembl <- sapply( strsplit ( rownames(res), split= "\\+" ), "[", 1)
+
+library("biomaRt")
+ensembl = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+genemap <- getBM(attributes = c("entrezgene_id", "hgnc_symbol", "external_gene_name", "description"),
+                  filters = "entrezgene_id",
+                  values = res$ensembl,
+                  mart = ensembl)
+idx <- match (res$ensembl, genemap$entrezgene_id)
+copydata <- data
+copydata$hgnc_symbol <- genemap$hgnc_symbol[ idx ]
+copydata$external_gene_name <- genemap$external_gene_name[ idx ]
+copydata$description <- genemap$description[idx]
+
+resflutemp48$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resflutemp48$external_gene_name <- genemap$external_gene_name[ idx ]
+resflutemp48$description <- genemap$description[ idx ]
+
+resflutemp24$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resflutemp24$external_gene_name <- genemap$external_gene_name[ idx ]
+resflutemp24$description <- genemap$description[ idx ]
+
+resscvtemp48$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resscvtemp48$external_gene_name <- genemap$external_gene_name[ idx ]
+resscvtemp48$description <- genemap$description[ idx ]
+
+resscvtemp24$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resscvtemp24$external_gene_name <- genemap$external_gene_name[ idx ]
+resscvtemp24$description <- genemap$description[ idx ]
+
+resmocktemp48$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resmocktemp48$external_gene_name <- genemap$external_gene_name[ idx ]
+resmocktemp48$description <- genemap$description[ idx ]
+
+resmocktemp24$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resmocktemp24$external_gene_name <- genemap$external_gene_name[ idx ]
+resmocktemp24$description <- genemap$description[ idx ]
+
+resfluvscv4837$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resfluvscv4837$external_gene_name <- genemap$external_gene_name[ idx ]
+resfluvscv4837$description <- genemap$description[ idx ]
+
+resfluvscv4833$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resfluvscv4833$external_gene_name <- genemap$external_gene_name[ idx ]
+resfluvscv4833$description <- genemap$description[ idx ]
+
+resfluvmock4837$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resfluvmock4837$external_gene_name <- genemap$external_gene_name[ idx ]
+resfluvmock4837$description <- genemap$description[ idx ]
+
+resfluvmock2437$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resfluvmock2437$external_gene_name <- genemap$external_gene_name[ idx ]
+resfluvmock2437$description <- genemap$description[ idx ]
+
+resscvvmock4837$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resscvvmock4837$external_gene_name <- genemap$external_gene_name[ idx ]
+resscvvmock4837$description <- genemap$description[ idx ]
+
+resfluvmock4833$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resfluvmock4833$external_gene_name <- genemap$external_gene_name[ idx ]
+resfluvmock4833$description <- genemap$description[ idx ]
+
+resfluvmock2433$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resfluvmock2433$external_gene_name <- genemap$external_gene_name[ idx ]
+resfluvmock2433$description <- genemap$description[ idx ]
+
+resscvvmock4833$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resscvvmock4833$external_gene_name <- genemap$external_gene_name[ idx ]
+resscvvmock4833$description <- genemap$description[ idx ]
+
+
+#resave files with names
+
+
+write.csv(as.data.frame(resflutemp48), file = "flutemp48resultswithnames.csv")
+write.csv(as.data.frame(resflutemp24), file = "flutemp24resultswithnames.csv")
+
+write.csv(as.data.frame(resscvtemp48), file = "scvtemp48resultswithnames.csv")
+write.csv(as.data.frame(resscvtemp24), file = "scvtemp24resultswithnames.csv")
+
+write.csv(as.data.frame(resmocktemp48), file = "mocktemp48resultswithnames.csv")
+write.csv(as.data.frame(resmocktemp24), file = "mocktemp24resultswithnames.csv")
+
+write.csv(as.data.frame(resfluvscv4833), file = "fluvscv4833resultswithnames.csv")
+
+write.csv(as.data.frame(resfluvscv4837), file = "fluvscv4837resultswithnames.csv")
+
+write.csv(as.data.frame(resfluvmock4837), file = "fluvmock4837resultswithnames.csv")
+write.csv(as.data.frame(resfluvmock2437), file = "fluvmock2437resultswithnames.csv")
+
+write.csv(as.data.frame(resscvvmock4837), file = "scvvmock4837resultswithnames.csv")
+
+write.csv(as.data.frame(resfluvmock4833), file = "fluvmock4833resultswithnames.csv")
+write.csv(as.data.frame(resfluvmock2433), file = "fluvmock2433resultswithnames.csv")
+
+write.csv(as.data.frame(resscvvmock4833), file = "scvvmock4833resultswithnames.csv")
+
+```
+```{r}
+#import csv files so dont have rerun above chunks
+resflutemp48 <- read.csv("flutemp48resultswithnames.csv")
+
+resscvtemp48 <- read.csv("scvtemp48resultswithnames.csv")
+
+resmocktemp48 <- read.csv("mocktemp48resultswithnames.csv")
+
+resfluvscv4833 <- read.csv("fluvscv4833resultswithnames.csv")
+
+resfluvscv4837 <- read.csv("fluvscv4837resultswithnames.csv")
+
+resfluvmock4837 <- read.csv("fluvmock4837resultswithnames.csv")
+
+resscvvmock4837 <- read.csv("scvvmock4837resultswithnames.csv")
+
+resfluvmock4833 <- read.csv("fluvmock4833resultswithnames.csv")
+
+resscvvmock4833 <- read.csv("scvvmock4833resultswithnames.csv")
+
+```
+
+```{r}
+#makevolcanoplots
+
+#temp for each condition
+#IAV
+with(resflutemp48, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV 33 v 37 48 HPI", xlim=c(-7,7)))
+with(subset(resflutemp48, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="dark blue"))
+with(subset(resflutemp48, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="red"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+with(resflutemp24, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV 33 v 37 24 HPI", xlim=c(-7,7)))
+with(subset(resflutemp24, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="dark blue"))
+with(subset(resflutemp24, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="red"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+#SCV2
+with(resscvtemp48, plot(log2FoldChange, -log10(padj), pch=20, main = "SCV2 33 v 37 48 HPI", xlim=c(-15,15)))
+with(subset(resscvtemp48, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="light blue"))
+with(subset(resscvtemp48, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="darksalmon"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+#mock
+with(resmocktemp48, plot(log2FoldChange, -log10(padj), pch=20, main = "MOCK 33 v 37 48HPI", xlim=c(-7,7)))
+with(subset(resmocktemp48, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="skyblue4"))
+with(subset(resmocktemp48, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="firebrick4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+with(resmocktemp24, plot(log2FoldChange, -log10(padj), pch=20, main = "MOCK 33 v 37 24HPI", xlim=c(-7,7)))
+with(subset(resmocktemp24, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="skyblue4"))
+with(subset(resmocktemp24, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="firebrick4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+
+#comparisons between conditions
+#IAV v SCV2 33
+with(resfluvscv4833, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV v SCV2 33", xlim=c(-20,20)))
+with(subset(resfluvscv4833, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="dark blue"))
+with(subset(resfluvscv4833, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="light blue"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+#IAV v SCV2 37
+with(resfluvscv4837, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV v SCV2 37", xlim=c(-15,15)))
+with(subset(resfluvscv4837, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="red"))
+with(subset(resfluvscv4837, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="darksalmon"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+#IAV v Mock 33
+with(resfluvmock4833, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV v Mock 33 48HPI", xlim=c(-20,20)))
+with(subset(resfluvmock4833, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="dark blue"))
+with(subset(resfluvmock4833, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="skyblue4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+with(resfluvmock2433, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV v Mock 33 24HPI", xlim=c(-20,20)))
+with(subset(resfluvmock2433, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="dark blue"))
+with(subset(resfluvmock2433, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="skyblue4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+#IAV v Mock 37
+with(resfluvmock4837, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV v Mock 37 48HPI", xlim=c(-20,20)))
+with(subset(resfluvmock4837, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="red"))
+with(subset(resfluvmock4837, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="firebrick4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+with(resfluvmock2437, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV v Mock 37 24HPI", xlim=c(-20,20)))
+with(subset(resfluvmock2437, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="red"))
+with(subset(resfluvmock2437, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="firebrick4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+#SCV2 v Mock 33
+with(resscvvmock4833, plot(log2FoldChange, -log10(padj), pch=20, main = "SCV2 v Mock 33", xlim=c(-20,20)))
+with(subset(resscvvmock4833, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="light blue"))
+with(subset(resscvvmock4833, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="skyblue4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+#SCV2 v Mock 37
+with(resscvvmock4837, plot(log2FoldChange, -log10(padj), pch=20, main = "SCV2 v Mock 37", xlim=c(-15,15)))
+with(subset(resscvvmock4837, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="darksalmon"))
+with(subset(resscvvmock4837, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="firebrick4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+
+
+#get counts
+iavvscv33up <- na.omit(subset(resfluvscv4833, padj<0.05 & log2FoldChange>1.5))
+iavvscv37up <- na.omit(subset(resfluvscv4837, padj<0.05 & log2FoldChange>1.5))
+mock33v37up <- na.omit(subset(resmocktemp48, padj<0.05 & log2FoldChange>1.5))
+iav33v37up <- na.omit(subset(resflutemp48, padj<0.05 & log2FoldChange>1.5))
+scv33v37up <- na.omit(subset(resscvtemp48, padj<0.05 & log2FoldChange>1.5))
+iavvmock33up <- na.omit(subset(resfluvmock4833, padj<0.05 & log2FoldChange>1.5))
+scvvmock33up <- na.omit(subset(resscvvmock4833, padj<0.05 & log2FoldChange>1.5))
+iavvmock37up <- na.omit(subset(resfluvmock4837, padj<0.05 & log2FoldChange>1.5))
+scvvmock37up <- na.omit(subset(resscvvmock4837, padj<0.05 & log2FoldChange>1.5))
+
+mock33v37up24 <- na.omit(subset(resmocktemp24, padj<0.05 & log2FoldChange>1.5))
+iavvmock33up24 <- na.omit(subset(resfluvmock2433, padj<0.05 & log2FoldChange>1.5))
+iavvmock37up24 <- na.omit(subset(resfluvmock2437, padj<0.05 & log2FoldChange>1.5))
+iav33v3724up <- na.omit(subset(resflutemp24, padj<0.05 & log2FoldChange>1.5))
+
+iavvscv33down <- na.omit(subset(resfluvscv4833, padj<0.05 & log2FoldChange< -1.5))
+iavvscv37down <- na.omit(subset(resfluvscv4837, padj<0.05 & log2FoldChange< -1.5))
+mock33v37down <- na.omit(subset(resmocktemp48, padj<0.05 & log2FoldChange< -1.5))
+iav33v37down <- na.omit(subset(resflutemp48, padj<0.05 & log2FoldChange< -1.5))
+scv33v37down <- na.omit(subset(resscvtemp48, padj<0.05 & log2FoldChange< -1.5))
+iavvmock33down <- na.omit(subset(resfluvmock4833, padj<0.05 & log2FoldChange< -1.5))
+scvvmock33down <- na.omit(subset(resscvvmock4833, padj<0.05 & log2FoldChange< -1.5))
+iavvmock37down <- na.omit(subset(resfluvmock4837, padj<0.05 & log2FoldChange< -1.5))
+scvvmock37down <- na.omit(subset(resscvvmock4837, padj<0.05 & log2FoldChange< -1.5))
+
+mock33v37down24 <- na.omit(subset(resmocktemp48, padj<0.05 & log2FoldChange< -1.5))
+iavvmock33down224 <- na.omit(subset(resfluvmock2433, padj<0.05 & log2FoldChange< -1.5))
+iavvmock37down24 <- na.omit(subset(resfluvmock2437, padj<0.05 & log2FoldChange< -1.5))
+iav33v3724down <- na.omit(subset(resflutemp24, padj<0.05 & log2FoldChange< -1.5))
+
+write(iav33v37up$hgnc_symbol, file="iav33v37up.txt", sep=",")
+
+write(iav33v37down$hgnc_symbol, file="iav33v37down.txt", sep=",")
+write(scv33v37up$hgnc_symbol, file="scv33v37up.txt", sep=",")
+write(scv33v37down$hgnc_symbol, file="scv33v37down.txt", sep=",")
+write(mock33v37up$hgnc_symbol, file="mock33v37up.txt", sep=",")
+write(mock33v37down$hgnc_symbol, file="mock33v37down.txt", sep=",")
+
+length(intersect(iav33v37up$hgnc_symbol, scv33v37up$hgnc_symbol))
+length(intersect(iav33v37down$hgnc_symbol, scv33v37down$hgnc_symbol))
+
+bothup <- iav33v37up$hgnc_symbol[ iav33v37up$hgnc_symbol %in% scv33v37up$hgnc_symbol]
+onlyiavup <- iav33v37up$hgnc_symbol[ !iav33v37up$hgnc_symbol %in% scv33v37up$hgnc_symbol]
+onlyscvup <- scv33v37up$hgnc_symbol[ !scv33v37up$hgnc_symbol %in% iav33v37up$hgnc_symbol]
+require("gplots")
+venn(list(first.vector = iav33v37up$hgnc_symbol, second.vector = scv33v37up$hgnc_symbol))
+
+bothdown <- iav33v37down$hgnc_symbol[ iav33v37down$hgnc_symbol %in% scv33v37down$hgnc_symbol]
+onlyiavdown <- iav33v37down$hgnc_symbol[ !iav33v37down$hgnc_symbol %in% scv33v37down$hgnc_symbol]
+onlyscvdown <- scv33v37down$hgnc_symbol[ !scv33v37down$hgnc_symbol %in% iav33v37down$hgnc_symbol]
+require("gplots")
+venn(list(first.vector = iav33v37down$hgnc_symbol, second.vector = scv33v37down$hgnc_symbol))
+
+bothdownmock <- bothdown [ bothdown %in% mock33v37down$hgnc_symbol]
+bothupmock <- bothup [ bothup %in% mock33v37up$hgnc_symbol]
+
+infectiondown <- bothdown [!(bothdown %in% bothdownmock)]
+infectionup <- bothup [!(bothup %in% bothupmock)]
+
+genesofinterest <- subset(iav33v37up, hgnc_symbol %in% bothup)
+```
+```{r}
+#install.packages("UpSetR")
+library(UpSetR)
+listInput <- list(IAVup33 =iav33v37up$hgnc_symbol, IAVup37 =iav33v37down$hgnc_symbol, SCVup37 =scv33v37down$hgnc_symbol, SCVup33 = scv33v37up$hgnc_symbol, MOCKup37 = mock33v37down$hgnc_symbol, MOCKup33 = mock33v37up$hgnc_symbol)
+upsetplot <- upset(fromList(listInput), order.by = "freq")
+
+#generate reference lists
+virus37 <- iav33v37down[which(iav33v37down$hgnc_symbol %in% scv33v37down$hgnc_symbol),]
+virus33 <- iav33v37up[which(iav33v37up$hgnc_symbol %in% scv33v37up$hgnc_symbol),]
+temp37 <- virus37[which(virus37$hgnc_symbol %in% mock33v37down$hgnc_symbol),]
+temp33 <- virus33[which(virus33$hgnc_symbol %in% mock33v37up$hgnc_symbol),]
+
+pdf(file="upsetplot.pdf", width = 8, height = 4)
+upsetplot
+dev.off()
+
+write.csv(as.data.frame(virus37), file = "iavandscv2common37.csv")
+write.csv(as.data.frame(virus33), file = "iavandscv2common33.csv")
+write.csv(as.data.frame(temp37), file = "allcommon37.csv")
+write.csv(as.data.frame(temp33), file = "allcommon33.csv")
+upsetplot
+
+```
+```{r}
+#graph genes in common
+#mycolors = list(condition = c(F2433 ="plum1", F2437="plum2", F4833="plum3", F4837="plum4", M2433="paleturquoise1", M2437="paleturquoise2", M4833="paleturquoise3", M4837="paleturquoise4", S2433="slateblue1", S2437="slateblue2", S4833="slateblue3", S4837="slateblue4"))
+library(ggplot2)
+library(DESeq2)
+
+d <- plotCounts(dds, gene= "402778", intgroup= "condition", returnData = TRUE)
+
+ifitm10 <- ggplot(d, aes( x = condition, y = count, fill = condition, shape = condition)) +
+  
+  geom_point(position=position_jitter(w = 0,h = 0)) +
+  
+  theme_gray() +
+  ggtitle("IFITM10") +
+  theme(plot.title = element_text(hjust = 0.5))
+ifitm10 + scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))+
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))
+
+a <- plotCounts(dds, gene= "200315", intgroup= "condition", returnData = TRUE)
+
+apobec3a <- ggplot(a, aes( x = condition, y = count, fill = condition, shape = condition)) +
+  
+  geom_point(position=position_jitter(w = 0,h = 0)) +
+
+  theme_gray() +
+  ggtitle("APOBEC3A") +
+  theme(plot.title = element_text(hjust = 0.5))
+apobec3a + scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))+
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))
+
+b <- plotCounts(dds, gene= "9582", intgroup= "condition", returnData = TRUE)
+
+apobec3b <- ggplot(b, aes( x = condition, y = count, fill = condition, shape = condition)) +
+  
+  geom_point(position=position_jitter(w = 0,h = 0)) +
+ 
+  theme_gray() +
+  ggtitle("APOBEC3B") +
+  theme(plot.title = element_text(hjust = 0.5))
+apobec3b + scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))+
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))
+
+bas1 <- plotCounts(dds, gene= "100874530", intgroup= "condition", returnData = TRUE)
+
+apobec3b_as1 <- ggplot(bas1, aes( x = condition, y = count, fill = condition, shape = condition)) +
+  
+  geom_point(position=position_jitter(w = 0,h = 0)) +
+
+  theme_gray() +
+  ggtitle("APOBEC3B-AS1") +
+  theme(plot.title = element_text(hjust = 0.5))
+apobec3b_as1 + scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))+
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))
+
+
+m <- plotCounts(dds, gene= "255027", intgroup= "condition", returnData = TRUE)
+
+mpv <- ggplot(m, aes( x = condition, y = count, fill = condition, shape = condition)) +
+  
+  geom_point(position=position_jitter(w = 0,h = 0)) +
+
+  theme_gray() +
+  ggtitle("MPV17L") +
+  theme(plot.title = element_text(hjust = 0.5))
+mpv + scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))+
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))
+
+k <- plotCounts(dds, gene= "196374", intgroup= "condition", returnData = TRUE)
+
+keratin <- ggplot(k, aes( x = condition, y = count, fill = condition, shape = condition)) +
+  
+  geom_point(position=position_jitter(w = 0,h = 0)) +
+
+  theme_gray() +
+  ggtitle("KRT78") +
+  theme(plot.title = element_text(hjust = 0.5))
+keratin + scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))+
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))
+
+s <- plotCounts(dds, gene= "6704", intgroup= "condition", returnData = TRUE)
+
+sprr <- ggplot(s, aes( x = condition, y = count, fill = condition, shape = condition)) +
+  
+  geom_point(position=position_jitter(w = 0,h = 0)) +
+
+  theme_gray() +
+  ggtitle("sprr2e") +
+  theme(plot.title = element_text(hjust = 0.5))
+sprr + scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))+
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))
+
+```
+```{r}
+#the S4833 looks weird so quickly checking 24
+scvvmock2433 <- results(dds, contrast = c("condition", "S2433", "M2433"))
+summary(scvvmock2433)
+write.csv(as.data.frame(scvvmock4833), file = "scvvmock2433results.csv")
+
+resscvvmock2433 <- results(dds, contrast = c("condition", "S2433", "M2433"))
+summary(resscvvmock2433)
+
+resscvvmock2433$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resscvvmock2433$external_gene_name <- genemap$external_gene_name[ idx ]
+resscvvmock2433$description <- genemap$description[ idx ]
+
+write.csv(as.data.frame(resscvvmock2433), file = "scvvmock2433resultswithnames.csv")
+
+#SCV2 v Mock 33
+with(resscvvmock2433, plot(log2FoldChange, -log10(padj), pch=20, main = "SCV2 v Mock 33", xlim=c(-20,20)))
+with(subset(resscvvmock2433, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="light blue"))
+with(subset(resscvvmock2433, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="azure3"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+
+scvvmock2437 <- results(dds, contrast = c("condition", "S2437", "M2437"))
+summary(scvvmock2437)
+write.csv(as.data.frame(scvvmock4837), file = "scvvmock2437results.csv")
+
+resscvvmock2437 <- results(dds, contrast = c("condition", "S2437", "M2437"))
+summary(resscvvmock2437)
+
+resscvvmock2437$hgnc_symbol <- genemap$hgnc_symbol [ idx ]
+resscvvmock2437$external_gene_name <- genemap$external_gene_name[ idx ]
+resscvvmock2437$description <- genemap$description[ idx ]
+
+write.csv(as.data.frame(resscvvmock2437), file = "scvvmock2437resultswithnames.csv")
+
+#SCV2 v Mock 33
+with(resscvvmock2437, plot(log2FoldChange, -log10(padj), pch=20, main = "SCV2 v Mock 37", xlim=c(-20,20)))
+with(subset(resscvvmock2437, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="darksalmon"))
+with(subset(resscvvmock2437, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="azure4"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+scvvmock2437up <- as.data.frame(subset(resscvvmock2437, padj<0.05 & log2FoldChange>1.5))
+scvvmock2437down <- as.data.frame(subset(resscvvmock2437, padj<0.05 & log2FoldChange< -1.5))
+scvvmock2433up <- as.data.frame(subset(resscvvmock2433, padj<0.05 & log2FoldChange>1.5))
+scvvmock2433down <- as.data.frame(subset(resscvvmock2433, padj<0.05 & log2FoldChange< -1.5))
+
+```
+
+```{r}
+library(pheatmap)
+library(RColorBrewer)
+library(DESeq2)
+library(dplyr)
+ntd <- normTransform (dds)
+select <- order(rowMeans(counts(dds,normalized= TRUE)), decreasing =TRUE)
+
+df <- as.data.frame(colData(dds)[,c("condition")])
+colnames(df) <- "condition"
+rownames(df) <-colnames(assay(ntd))
+
+annotationfile <- read.csv("tempcoldatanew.csv")
+rownames(annotationfile) <- annotationfile$X
+annotationfile <- annotationfile[,-1]
+
+forgraph <- annotationfile[,2:4]
+forgraph$temperature <- as.character(forgraph$temperature)
+forgraph$time <- as.character(forgraph$time)
+
+ann_colors = list(virus = c(IAV = "darkolivegreen1", MOCK = "dodgerblue3", SCV2 = "purple4"), temperature = c("37" = "#ff4949", "33" ="#0f4392"), time = c("24" = "#00203fff", "48" ="#adefd1ff"))
+
+
+full <- as.data.frame(assay(ntd)[select,])
+
+
+h24 <- select(full, contains("24"))
+h48 <- select(full, contains("48"))
+t33 <- select(full, contains("33"))
+t37 <- select(full, contains("37"))
+
+
+mycolors = list(condition = c(F2433 ="plum1", F2437="plum2", F4833="plum3", F4837="plum4", M2433="paleturquoise1", M2437="paleturquoise2", M4833="paleturquoise3", M4837="paleturquoise4", S2433="slateblue1", S2437="slateblue2", S4833="slateblue3", S4837="slateblue4"))
+
+pheatmap(full, cluster_rows=TRUE, show_rownames= FALSE, cluster_cols=TRUE, annotation_col=forgraph,annotation_colors = ann_colors)
+
+pheatmap(h24, cluster_rows=TRUE, show_rownames= FALSE, cluster_cols=TRUE, annotation_col=forgraph,annotation_colors = ann_colors)
+
+pheatmap(h48, cluster_rows=TRUE, show_rownames= FALSE, cluster_cols=TRUE, annotation_col=forgraph,annotation_colors = ann_colors)
+
+pheatmap(t33, cluster_rows=TRUE, show_rownames= FALSE, cluster_cols=TRUE, annotation_col=forgraph,annotation_colors = ann_colors)
+
+pheatmap(t37, cluster_rows=TRUE, show_rownames= FALSE, cluster_cols=TRUE, annotation_col=forgraph,annotation_colors = ann_colors)
+
+
+
+
+```
+
+```{r}
+library(pheatmap)
+library(RColorBrewer)
+library(DESeq2)
+annotationfile <- read.csv("tempcoldatanew.csv")
+rownames(annotationfile) <- annotationfile$X
+annotationfile <- annotationfile[,-1]
+
+forgraph <- annotationfile[,2:4]
+forgraph$temperature <- as.character(forgraph$temperature)
+forgraph$time <- as.character(forgraph$time)
+
+ann_colors = list(virus = c(IAV = "darkolivegreen1", MOCK = "dodgerblue3", SCV2 = "purple4"), temperature = c("37" = "#ff4949", "33" ="#0f4392"), time = c("24" = "#00203fff", "48" ="#adefd1ff"))
+
+vsd <- vst(dds, blind= TRUE)
+select <- order(rowMeans(counts(dds,normalized= TRUE)), decreasing =TRUE)
+
+df <- as.data.frame(colData(dds)[,c("condition")])
+colnames(df) <- "condition"
+rownames(df) <-colnames(assay(vsd))
+
+vsdtop <- head(assay(vsd),5000)
+
+mycolors = list(condition = c(F2433 ="plum1", F2437="plum2", F4833="plum3", F4837="plum4", M2433="paleturquoise1", M2437="paleturquoise2", M4833="paleturquoise3", M4837="paleturquoise4", S2433="slateblue1", S2437="slateblue2", S4833="slateblue3", S4837="slateblue4"))
+pheatmap(assay(vsd)[select,], cluster_rows=TRUE, scale = "none", show_rownames= FALSE, cluster_cols=TRUE, annotation_col=annotationfile,annotation_colors = ann_colors)
+
+pheatmap(vsdtop, cluster_rows=TRUE, show_rownames= FALSE, cluster_cols=TRUE, annotation_col=df,annotation_colors = mycolors)
+
+
+```
+
+
+```{r}
+#qc
+#library(ggplot2)
+#pcaData <- plotPCA(vsd, intgroup = c("condition"), returnData = TRUE)
+#percentVar <- round(100* attr(pcaData, "percentVar"))
+#ggplot(pcaData, aes(PC1, PC2, color= condition)) + 
+  #geom_point(size=3)+
+  #xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  #ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  #scale_color_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("plum1", "plum2", "plum3", "plum4", "paleturquoise1", "paleturquoise2", "paleturquoise3", "paleturquoise4", "slateblue1", "slateblue2", "slateblue3", "slateblue4"))
+  #coord_fixed()
+  
+  library(ggplot2)
+pcaData <- plotPCA(vsd, intgroup = c("condition"), returnData = TRUE)
+percentVar <- round(100* attr(pcaData, "percentVar"))
+ggplot(pcaData, aes(PC1, PC2, fill= condition, shape = condition)) + 
+   
+  geom_point(size=3)+#,shape = 1, colour = "black") +
+  theme_gray() +
+  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))+
+  scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))
+  coord_fixed()
+  
+  #look at other PCs
+  dds1 <- rlog(dds, blind = TRUE)
+  rv <- rowVars(assay(dds1))
+  ntop = 5000
+  select <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+  pca <- prcomp(t(assay(dds1)[select,]))
+  PCA1 = pca$x[,1]
+  PCA2 = pca$x[,2]
+  PCA3 = pca$x[,3]
+  PCA4 = pca$x[,4]
+  
+plot(pca$x[,1], pca$x[,4])
+library(ggfortify)
+
+autoplot(pca, data = dds1, colour= condition)
+
+forgraph <- as.data.frame(pca$x)
+forgraph$condition <- c("F2433","F2433","F2433", "F2437","F2437","F2437", "F4833","F4833","F4833", "F4837","F4837","F4837", "M2433","M2433","M2433", "M2437","M2437","M2437", "M4833", "M4833","M4833", "M4837", "M4837","M4837","S2433", "S2433","S2433","S2437","S2437","S2437", "S4833","S4833","S4833", "S4837","S4837","S4837")
+
+ggplot(forgraph, aes(x=PC1, y=PC4, fill = condition, shape = condition)) +
+geom_point(size=4) +
+theme_gray()+
+ scale_fill_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833",  "M4837", "S2433", "S2437", "S4833", "S4837"), values = c("#cff9f9", "#ec8585", "#40e7e7", "#e55d5d", "#1bd7d7", "#df3434", "#15a7a7", "#c51f1f", "#0f7777", "#9c1919", "#094848", "#741212"))+
+  scale_shape_manual(breaks = c("F2433", "F2437", "F4833", "F4837", "M2433", "M2437", "M4833", "M4837", "S2433", "S2437", "S4833", "S4837"), values = c(21,21,21,21,22,22,22,22,24,24,24,24))
+  
+#library(pcaExplorer)
+ # pcaExplorer(dds= dds)
+  #pcaplot3d(vsd, intgroup = c("condition"))
+
+ #pca2go(vsd)
+```
+```{r}
+#pathway analysis from PCA
+library(ggplot2)
+#33
+mock33beer <- read.csv("/Users/pekosz-lab/Desktop/Jess/beerpathway_mock33.csv")
+mock33beer$Total.Number.of.Genes <- as.numeric(mock33beer$Total.Number.of.Genes)
+mock33beer$Number.of.Overlap <- as.numeric(mock33beer$Number.of.Overlap)
+mock33beer$Fraction.Overalp <- as.numeric(mock33beer$Fraction.Overalp)
+mock33beer$p.value <- as.numeric(mock33beer$p.value)
+mock33beer$Pathway.Name <- as.character(mock33beer$Pathway.Name)
+
+mock33beerplot <- ggplot(mock33beer, aes(x= mock33beer$Pathway.Name, y = mock33beer$Fraction.Overalp, fill = p.value))+
+  geom_col(position="dodge", width = 0.4, size=0.7, col="black")+
+  coord_flip() + viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::xlab("")+
+  ggplot2::ylab("Fraction Overlap")+
+  ggplot2::ggtitle("All Mock 33")
+
+pdf(file="mock33beer.pdf", width = 8, height = 4)
+mock33beerplot
+dev.off()
+
+#37
+mock37beer <- read.csv("/Users/pekosz-lab/Desktop/Jess/beerpathway_mock37.csv")
+mock37beer$Total.Number.of.Genes <- as.numeric(mock37beer$Total.Number.of.Genes)
+mock37beer$Number.of.Overlap <- as.numeric(mock37beer$Number.of.Overlap)
+mock37beer$Fraction.Overalp <- as.numeric(mock37beer$Fraction.Overalp)
+mock37beer$p.value <- as.numeric(mock37beer$p.value)
+mock37beer$Pathway.Name <- as.character(mock37beer$Pathway.Name)
+
+mock37beerplot <- ggplot(mock37beer, aes(x= mock37beer$Pathway.Name, y = mock37beer$Fraction.Overalp, fill = p.value))+
+  geom_col(position="dodge", width = 0.4, size=0.7, col="black")+
+  coord_flip() + viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::xlab("")+
+  ggplot2::ylab("Fraction Overlap")+
+  ggplot2::ggtitle("All Mock 37")
+
+pdf(file="mock37beer.pdf", width = 8, height = 4)
+mock37beerplot
+dev.off()
+
+#pc1 right
+pc1right <- read.csv("/Users/pekosz-lab/Desktop/Jess/beerpathway_pc1right.csv")
+pc1right$Total.Number.of.Genes <- as.numeric(pc1right$Total.Number.of.Genes)
+pc1right$Number.of.Overlap <- as.numeric(pc1right$Number.of.Overlap)
+pc1right$Fraction.Overalp <- as.numeric(pc1right$Fraction.Overalp)
+pc1right$p.value <- as.numeric(pc1right$p.value)
+pc1right$Pathway.Name <- as.character(pc1right$Pathway.Name)
+
+pc1rightplot <- ggplot(pc1right, aes(x= pc1right$Pathway.Name, y = pc1right$Fraction.Overalp, fill = p.value))+
+  geom_col(position="dodge", width = 0.4, size=0.7, col="black")+
+  coord_flip() + viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::xlab("")+
+  ggplot2::ylab("Fraction Overlap")+
+  ggplot2::ggtitle("PC1 Right Defining")
+
+pdf(file="pc1right.pdf", width = 8, height = 4)
+pc1rightplot
+dev.off()
+
+#pc1 left
+pc1left <- read.csv("/Users/pekosz-lab/Desktop/Jess/beerpathway_pc1left.csv")
+pc1left$Total.Number.of.Genes <- as.numeric(pc1left$Total.Number.of.Genes)
+pc1left$Number.of.Overlap <- as.numeric(pc1left$Number.of.Overlap)
+pc1left$Fraction.Overalp <- as.numeric(pc1left$Fraction.Overalp)
+pc1left$p.value <- as.numeric(pc1left$p.value)
+pc1left$Pathway.Name <- as.character(pc1left$Pathway.Name)
+
+pc1leftplot <- ggplot(pc1left, aes(x= pc1left$Pathway.Name, y = pc1left$Fraction.Overalp, fill = p.value))+
+  geom_col(position="dodge", width = 0.4, size=0.7, col="black")+
+  coord_flip() + viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::xlab("")+
+  ggplot2::ylab("Fraction Overlap")+
+  ggplot2::ggtitle("PC1 Left Defining")
+
+pdf(file="pc1left.pdf", width = 8, height = 4)
+pc1leftplot
+dev.off()
+
+#pc4 right
+pc4right <- read.csv("/Users/pekosz-lab/Desktop/Jess/beerpathway_pc4right.csv")
+pc4right$Total.Number.of.Genes <- as.numeric(pc4right$Total.Number.of.Genes)
+pc4right$Number.of.Overlap <- as.numeric(pc4right$Number.of.Overlap)
+pc4right$Fraction.Overalp <- as.numeric(pc4right$Fraction.Overalp)
+pc4right$p.value <- as.numeric(pc4right$p.value)
+pc4right$Pathway.Name <- as.character(pc4right$Pathway.Name)
+
+pc4rightplot <- ggplot(pc4right, aes(x= pc4right$Pathway.Name, y = pc4right$Fraction.Overalp, fill = p.value))+
+  geom_col(position="dodge", width = 0.4, size=0.7, col="black")+
+  coord_flip() + viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::xlab("")+
+  ggplot2::ylab("Fraction Overlap")+
+  ggplot2::ggtitle("PC4 37 Cluster (Right) Defining")
+
+pdf(file="pc4right.pdf", width = 8, height = 4)
+pc4rightplot
+dev.off()
+
+#pc4 left
+pc4left <- read.csv("/Users/pekosz-lab/Desktop/Jess/beerpathway_pc4left.csv")
+pc4left$Total.Number.of.Genes <- as.numeric(pc4left$Total.Number.of.Genes)
+pc4left$Number.of.Overlap <- as.numeric(pc4left$Number.of.Overlap)
+pc4left$Fraction.Overalp <- as.numeric(pc4left$Fraction.Overalp)
+pc4left$p.value <- as.numeric(pc4left$p.value)
+pc4left$Pathway.Name <- as.character(pc4left$Pathway.Name)
+
+pc4leftplot <- ggplot(pc4left, aes(x= pc4left$Pathway.Name, y = pc4left$Fraction.Overalp, fill = p.value))+
+  geom_col(position="dodge", width = 0.4, size=0.7, col="black")+
+  coord_flip() + viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::xlab("")+
+  ggplot2::ylab("Fraction Overlap")+
+  ggplot2::ggtitle("PC4 33 Cluster (Left) Defining")
+
+pdf(file="pc4left.pdf", width = 8, height = 4)
+pc4leftplot
+dev.off()
+
+#33
+all33 <- read.csv("/Users/pekosz-lab/Desktop/Jess/beerpatheay_all33.csv")
+all33$Total.Number.of.Genes <- as.numeric(all33$Total.Number.of.Genes)
+all33$Number.of.Overlap <- as.numeric(all33$Number.of.Overlap)
+all33$Fraction.Overalp <- as.numeric(all33$Fraction.Overalp)
+all33$p.value <- as.numeric(all33$p.value)
+all33$Pathway.Name <- as.character(all33$Pathway.Name)
+
+all33plot <- ggplot(all33, aes(x= all33$Pathway.Name, y = all33$Fraction.Overalp, fill = p.value))+
+  geom_col(position="dodge", width = 0.4, size=0.7, col="black")+
+  coord_flip() + viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::xlab("")+
+  ggplot2::ylab("Fraction Overlap")+
+  ggplot2::ggtitle("Up in all 33")
+
+pdf(file="all33.pdf", width = 8, height = 4)
+all33plot
+dev.off()
+
+#37
+all37 <- read.csv("/Users/pekosz-lab/Desktop/Jess/beerpathway_all37.csv")
+all37$Total.Number.of.Genes <- as.numeric(all37$Total.Number.of.Genes)
+all37$Number.of.Overlap <- as.numeric(all37$Number.of.Overlap)
+all37$Fraction.Overalp <- as.numeric(all37$Fraction.Overalp)
+all37$p.value <- as.numeric(all37$p.value)
+all37$Pathway.Name <- as.character(all37$Pathway.Name)
+
+all37plot <- ggplot(all37, aes(x= all37$Pathway.Name, y = all37$Fraction.Overalp, fill = p.value))+
+  geom_col(position="dodge", width = 0.4, size=0.7, col="black")+
+  coord_flip() + viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::xlab("")+
+  ggplot2::ylab("Fraction Overlap")+
+  ggplot2::ggtitle("Up in all 37")
+
+pdf(file="all37.pdf", width = 8, height = 4)
+all37plot
+dev.off()
+
+```
+```{r}
+#heatmap of defining genes pc1
+library(pheatmap)
+annotationfile <- read.csv("tempcoldatanew.csv")
+rownames(annotationfile) <- annotationfile$X
+annotationfile <- annotationfile[,-1]
+
+forgraph <- annotationfile[,2:4]
+forgraph$temperature <- as.character(forgraph$temperature)
+forgraph$time <- as.character(forgraph$time)
+
+
+ann_colors = list(virus = c(IAV = "darkolivegreen1", MOCK = "dodgerblue3", SCV2 = "purple4"), temperature = c("37" = "#ff4949", "33" ="#0f4392"), time = c("24" = "#00203fff", "48" ="#adefd1ff"))
+
+
+genes <- c("CXCL10","CXCL11", "INFL3", "IFNL2", "IFNL1", "IFNB1", "PPEF2", "FAM13C", "PRRT1B", "SAIH3", "MAP1B", "SLC47A2", "CYFIP2", "LMO1")
+
+
+mat1 <- copydata[which(copydata$hgnc_symbol %in% genes),]
+
+mat1 <-  mat1 %>% relocate(hgnc_symbol, .before = gene_ID) %>% select(!c(gene_ID, external_gene_name, description))
+
+m <- data.matrix(mat1)
+rownames(m) <- mat1[,1]
+m <- m[,-1]
+head(m)
+
+
+defgenes <- pheatmap(m, color= colorRampPalette(c("purple4", "white", "hotpink1"))(100), scale = "row", cellheight = 12, annotation_col=forgraph, annotation_colors= ann_colors,cluster_columns= TRUE,cluster_rows= TRUE, angle_col = 45)
+#defgenes <- pheatmap(m, color= colorRampPalette(c("purple4", "white", "hotpink1"))(100), scale = "row", cellheight = 12, annotation_col=df,annotation_colors = mycolorstemp,cluster_columns= TRUE,cluster_rows= TRUE, angle_col = 45)
+#defgenes <- pheatmap(m, color= colorRampPalette(c("#f5ea4d","white", "#3f3d84"))(100), scale = "row", cellheight = 12, annotation_col=df,annotation_colors = mycolorskyla,cluster_columns= TRUE,cluster_rows= TRUE, angle_col = 45)
+
+pdf(file="defgenes.pdf", width = 8, height = 4)
+defgenes
+dev.off()
+
+
+```
+
+
+
+```{r}
+library(tidyverse)
+#heatmap of defining genes keratinization in pc4
+library(pheatmap)
+annotationfile <- read.csv("tempcoldatanew.csv")
+rownames(annotationfile) <- annotationfile$X
+annotationfile <- annotationfile[,-1]
+
+forgraph <- annotationfile[,2:4]
+forgraph$temperature <- as.character(forgraph$temperature)
+forgraph$time <- as.character(forgraph$time)
+
+
+ann_colors = list(virus = c(IAV = "darkolivegreen1", MOCK = "dodgerblue3", SCV2 = "purple4"), temperature = c("37" = "#ff4949", "33" ="#0f4392"), time = c("24" = "#00203fff", "48" ="#adefd1ff"))
+
+genes_pc4 <- c("KRT76", "KRT75", "KRT79", "KRT78", "SPRR2B", "SPRR2E", "SPRR1A", "KRT2", "SPRR1B", "SPRR2F", "SPRR3", "LIPM", "KRT6A", "KRT85", "KRT81", "KRT6B", "KRT6C")
+
+#mycolorstemp = list(condition = c(F2433 ="#cff9f9", F2437="#ec8585", F4833="#40e7e7", F4837="#e55d5d", M2433="#1bd7d7", M2437="#df3434", M4833="#15a7a7", M4837="#c51f1f", S2433="#0f7777", S2437="#9c1919", S4833="#094848", S4837="#741212"))
+
+#mycolorskyla = list(condition = c(F2433 ="#F5EA4d", F4833="#ffec9c", F2437="#eea641", F4837="#e6843b", M2433="#2d2a4a", M4833="#3f3d84", M2437="#95317d", M4837="#904c96", S2433="#44988c", S4833="#5cb69a", S2437="#92bd54", S4837="#779f4f"))
+
+mat4 <- copydata[which(copydata$hgnc_symbol %in% genes_pc4),]
+
+## move hgnc_symbol col to front and delete all irrelevant columns for plotting
+mat4 <-  mat4 %>% relocate(hgnc_symbol, .before = gene_ID) %>% select(!c(gene_ID, external_gene_name, description))
+
+#continue with rowname 
+m4 <- data.matrix(mat4)
+rownames(m4) <- mat4[,1]
+m4 <- m4[,-1]
+head(m4)
+
+
+
+defgenes <- pheatmap(m4, color= colorRampPalette(c("purple4", "white", "hotpink1"))(100), scale = "row", cellheight = 12, annotation_col=forgraph, annotation_colors= ann_colors,cluster_columns= TRUE,cluster_rows= TRUE, angle_col = 45)
+
+pdf(file="defgenes_pc4.pdf", width = 9, height = 5)
+defgenes
+dev.off()
+
+
+
+
+
+```
+
+
+```{r}
+#pathway analysis for mock 33 v 37
+
+sigresultsmock33v3748 = subset(resmocktemp48, padj <0.05)
+upmock = subset(sigresultsmock33v3748, log2FoldChange > 0)
+downmock = subset(sigresultsmock33v3748, log2FoldChange < 0)
+
+gp_upmock = gost(row.names(upmock), organism ="hsapiens")
+gp_downmock = gost(row.names(downmock), organism = "hsapiens")
+
+#order by log2FC
+up_orderedmock = upmock[order(upmock$log2FoldChange, decreasing = TRUE),]
+gp_upmock_ordered = gost(row.names(up_orderedmock), organism = "hsapiens", ordered_query = TRUE)
+head(gp_upmock_ordered$result, 8)
+
+down_orderedmock = downmock[order(downmock$log2FoldChange, decreasing = TRUE),]
+gp_downmock_ordered = gost(row.names(down_orderedmock), organism = "hsapiens", ordered_query = TRUE)
+head(gp_downmock_ordered$result, 8)
+
+gostplot(gp_upmock_ordered, interactive = TRUE)
+gostplot(gp_downmock_ordered, interactive = TRUE)
+
+multi_gpmock = gost(list("Mock Higher at 33 48HPI" = row.names(upmock), "Mock Higher at 37 48HPI" = row.names(downmock)))
+p2mock = gostplot(multi_gpmock, interactive = FALSE)
+publish_gostplot(p2mock)
+
+#load additional packages
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+multi_gpmock = gost(list("Mock Higher at 33 at 48HPI" = row.names(upmock), "Mock Higher at 37 48HPI" = row.names(downmock), multi_query= FALSE, evcodes = TRUE))
+
+gp_modmock = multi_gpmock$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modmock$GeneRatio = paste0(gp_modmock$intersection_size, "/", gp_modmock$query_size)
+gp_modmock$BgRatio = paste0(gp_modmock$term_size, "/", gp_modmock$effective_domain_size)
+row.names(gp_modmock) = gp_modmock$ID
+names(gp_modmock) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modmock$geneID = gsub(",", "/", gp_modmock$geneID)
+
+#define as compareClusterResult object
+gp_mod_clustermock = new("compareClusterResult", compareClusterResult = gp_modmock)
+
+#define as an enrichResult object
+gp_mod_enrichmock = new("enrichResult", result = gp_modmock)
+
+#plot
+enrichplot::dotplot(gp_mod_clustermock, font.size = 5, showCategory = 10)
+barplot(gp_mod_enrichmock, order=TRUE, showCategory = 20, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+
+
+#pathway analysis for mock 33 v 37 24hpi
+
+sigresultsmock33v3724 = subset(resmocktemp24, padj <0.05)
+upmock = subset(sigresultsmock33v3724, log2FoldChange > 0)
+downmock = subset(sigresultsmock33v3724, log2FoldChange < 0)
+
+gp_upmock = gost(row.names(upmock), organism ="hsapiens")
+gp_downmock = gost(row.names(downmock), organism = "hsapiens")
+
+#order by log2FC
+up_orderedmock = upmock[order(upmock$log2FoldChange, decreasing = TRUE),]
+gp_upmock_ordered = gost(row.names(up_orderedmock), organism = "hsapiens", ordered_query = TRUE)
+head(gp_upmock_ordered$result, 8)
+
+down_orderedmock = downmock[order(downmock$log2FoldChange, decreasing = TRUE),]
+gp_downmock_ordered = gost(row.names(down_orderedmock), organism = "hsapiens", ordered_query = TRUE)
+head(gp_downmock_ordered$result, 8)
+
+gostplot(gp_upmock_ordered, interactive = TRUE)
+gostplot(gp_downmock_ordered, interactive = TRUE)
+
+multi_gpmock = gost(list(" Mock Higher at 33 24HPI" = row.names(upmock), "Mock Higher at 37 24HPI" = row.names(downmock)))
+p2mock = gostplot(multi_gpmock, interactive = FALSE)
+publish_gostplot(p2mock)
+
+#load additional packages
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+multi_gpmock = gost(list("Mock Higher at 33 at 24HPI" = row.names(upmock), "Mock Higher at 37 24HPI" = row.names(downmock), multi_query= FALSE, evcodes = TRUE))
+
+gp_modmock = multi_gpmock$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modmock$GeneRatio = paste0(gp_modmock$intersection_size, "/", gp_modmock$query_size)
+gp_modmock$BgRatio = paste0(gp_modmock$term_size, "/", gp_modmock$effective_domain_size)
+row.names(gp_modmock) = gp_modmock$ID
+names(gp_modmock) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modmock$geneID = gsub(",", "/", gp_modmock$geneID)
+
+#define as compareClusterResult object
+gp_mod_clustermock = new("compareClusterResult", compareClusterResult = gp_modmock)
+
+#define as an enrichResult object
+gp_mod_enrichmock = new("enrichResult", result = gp_modmock)
+
+#plot
+enrichplot::dotplot(gp_mod_clustermock, font.size = 5, showCategory = 10)
+barplot(gp_mod_enrichmock, order=TRUE, showCategory = 20, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+
+```
+```{r}
+#pathway analysis for IAV 33 v 37
+
+sigresultsflu33v3748 = subset(resflutemp48, padj <0.05)
+upflu = subset(sigresultsflu33v3748, log2FoldChange > 1.5)
+downflu = subset(sigresultsflu33v3748, log2FoldChange < -1.5)
+
+gp_upflu = gost(row.names(upflu), organism ="hsapiens")
+gp_downflu = gost(row.names(downflu), organism = "hsapiens")
+
+#order by log2FC
+up_orderedflu = upflu[order(upflu$log2FoldChange, decreasing = TRUE),]
+gp_upflu_ordered = gost(row.names(up_orderedflu), organism = "hsapiens", ordered_query = TRUE)
+head(gp_upflu_ordered$result, 8)
+
+down_orderedflu = downflu[order(downflu$log2FoldChange, decreasing = TRUE),]
+gp_downflu_ordered = gost(row.names(down_orderedflu), organism = "hsapiens", ordered_query = TRUE)
+head(gp_downflu_ordered$result, 8)
+
+#gostplot(gp_upflu_ordered, interactive = TRUE)
+#gostplot(gp_downflu_ordered, interactive = TRUE)
+
+multi_gpflu = gost(list("IAV Higher at 33 48HPI" = row.names(upflu), "IAV Higher at 37 48HPI" = row.names(downflu)))
+p2flu = gostplot(multi_gpflu, interactive = FALSE)
+#publish_gostplot(p2flu)
+
+#load additional packages
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+multi_gpflu = gost(list("IAV Higher at 33 48 HPI" = row.names(upflu), "IAV Higher at 37 48HPI" = row.names(downflu), multi_query= FALSE, evcodes = TRUE))
+
+gp_modflu = multi_gpflu$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modflu$GeneRatio = paste0(gp_modflu$intersection_size, "/", gp_modflu$query_size)
+gp_modflu$BgRatio = paste0(gp_modflu$term_size, "/", gp_modflu$effective_domain_size)
+row.names(gp_modflu) = gp_modflu$ID
+names(gp_modflu) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modflu$geneID = gsub(",", "/", gp_modflu$geneID)
+
+#define as compareClusterResult object
+gp_mod_clusterflu = new("compareClusterResult", compareClusterResult = gp_modflu)
+
+#define as an enrichResult object
+gp_mod_enrichflu = new("enrichResult", result = gp_modflu)
+
+#plot
+#enrichplot::dotplot(gp_mod_clusterflu, font.size = 7, showCategory = 50)
+barplot(gp_mod_enrichflu, order=TRUE, showCategory = 20, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+
+
+#pathway analysis for IAV 33 v 37 24 hpi
+
+sigresultsflu33v3724 = subset(resflutemp24, padj <0.05)
+upflu = subset(sigresultsflu33v3724, log2FoldChange > 1.5)
+downflu = subset(sigresultsflu33v3724, log2FoldChange < -1.5)
+
+gp_upflu = gost(row.names(upflu), organism ="hsapiens")
+gp_downflu = gost(row.names(downflu), organism = "hsapiens")
+
+#order by log2FC
+up_orderedflu = upflu[order(upflu$log2FoldChange, decreasing = TRUE),]
+gp_upflu_ordered = gost(row.names(up_orderedflu), organism = "hsapiens", ordered_query = TRUE)
+head(gp_upflu_ordered$result, 8)
+
+down_orderedflu = downflu[order(downflu$log2FoldChange, decreasing = TRUE),]
+gp_downflu_ordered = gost(row.names(down_orderedflu), organism = "hsapiens", ordered_query = TRUE)
+head(gp_downflu_ordered$result, 8)
+
+#gostplot(gp_upflu_ordered, interactive = TRUE)
+#gostplot(gp_downflu_ordered, interactive = TRUE)
+
+multi_gpflu = gost(list("IAV Higher at 33 24HPI" = row.names(upflu), "IAV Higher at 37 24HPI" = row.names(downflu)))
+p2flu = gostplot(multi_gpflu, interactive = FALSE)
+#publish_gostplot(p2flu)
+
+#load additional packages
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+multi_gpflu = gost(list("IAV Higher at 33 24HPI" = row.names(upflu), "IAV Higher at 37 24HPI" = row.names(downflu), multi_query= FALSE, evcodes = TRUE))
+
+gp_modflu = multi_gpflu$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modflu$GeneRatio = paste0(gp_modflu$intersection_size, "/", gp_modflu$query_size)
+gp_modflu$BgRatio = paste0(gp_modflu$term_size, "/", gp_modflu$effective_domain_size)
+row.names(gp_modflu) = gp_modflu$ID
+names(gp_modflu) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modflu$geneID = gsub(",", "/", gp_modflu$geneID)
+
+#define as compareClusterResult object
+gp_mod_clusterflu = new("compareClusterResult", compareClusterResult = gp_modflu)
+
+#define as an enrichResult object
+gp_mod_enrichflu = new("enrichResult", result = gp_modflu)
+
+#plot
+#enrichplot::dotplot(gp_mod_clusterflu, font.size = 7, showCategory = 50)
+barplot(gp_mod_enrichflu, order=TRUE, showCategory = 30, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+ 
+```
+
+```{r}
+#pathway analysis for SCV v IAV 37 48
+
+sigresultsvirus = subset(resfluvscv4837, padj <0.05)
+upvirus = subset(sigresultsvirus, log2FoldChange > 1.5)
+downvirus = subset(sigresultsvirus, log2FoldChange < -1.5)
+
+gp_upvirus = gost(row.names(upvirus), organism ="hsapiens")
+gp_downvirus = gost(row.names(downvirus), organism = "hsapiens")
+
+#order by log2FC
+up_orderedvirus = upvirus[order(upvirus$log2FoldChange, decreasing = TRUE),]
+gp_upvirus_ordered = gost(row.names(up_orderedvirus), organism = "hsapiens", ordered_query = TRUE)
+head(gp_upvirus_ordered$result, 8)
+
+down_orderedvirus = downvirus[order(downvirus$log2FoldChange, decreasing = TRUE),]
+gp_downvirus_ordered = gost(row.names(down_orderedvirus), organism = "hsapiens", ordered_query = TRUE)
+head(gp_downvirus_ordered$result, 8)
+
+#gostplot(gp_upvirus_ordered, interactive = TRUE)
+#gostplot(gp_downvirus_ordered, interactive = TRUE)
+gp_modvirusup = gp_upvirus_ordered$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modvirusup$GeneRatio = paste0(gp_modvirusup$intersection_size, "/", gp_modvirusup$query_size)
+gp_modvirusup$BgRatio = paste0(gp_modvirusup$term_size, "/", gp_modvirusup$effective_domain_size)
+row.names(gp_modvirusup) = gp_modvirusup$ID
+names(gp_modvirusup) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modvirusup$geneID = gsub(",", "/", gp_modvirusup$geneID)
+gp_modvirusup$Cluster = c("Higher in IAV")
+#define as compareClusterResult object
+gp_mod_clustervirusup = new("compareClusterResult", compareClusterResult = gp_modvirusup)
+
+#define as an enrichResult object
+gp_mod_enrichvirusup = new("enrichResult", result = gp_modvirusup)
+
+barplot(gp_mod_enrichvirusup, order=TRUE, showCategory = 20, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+
+multi_gpvirus = gost(list("Higher in IAV" = row.names(upvirus), "Higher in SCV2" = row.names(downvirus)))
+p2virus = gostplot(multi_gpvirus, interactive = FALSE)
+
+gp_modvirusdown = gp_downvirus_ordered$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modvirusdown$GeneRatio = paste0(gp_modvirusdown$intersection_size, "/", gp_modvirusdown$query_size)
+gp_modvirusdown$BgRatio = paste0(gp_modvirusdown$term_size, "/", gp_modvirusdown$effective_domain_size)
+row.names(gp_modvirusdown) = gp_modvirusdown$ID
+names(gp_modvirusdown) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modvirusdown$geneID = gsub(",", "/", gp_modvirusdown$geneID)
+gp_modvirusdown$Cluster = c("Higher in SCV2")
+#define as compareClusterResult object
+gp_mod_clustervirusdown = new("compareClusterResult", compareClusterResult = gp_modvirusdown)
+
+#define as an enrichResult object
+gp_mod_enrichvirusdown = new("enrichResult", result = gp_modvirusdown)
+
+barplot(gp_mod_enrichvirusdown, order=TRUE, showCategory = 20, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+
+multi_gpvirus = gost(list("Higher in IAV" = row.names(upvirus), "Higher in SCV2" = row.names(downvirus)))
+p2virus = gostplot(multi_gpvirus, interactive = FALSE)
+
+#load additional packages
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+multi_gpvirus = gost(list("Higher in IAV" = row.names(upvirus), "Higher in SCV2" = row.names(downvirus), multi_query= FALSE, evcodes = TRUE))
+
+gp_modvirus = multi_gpvirus$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modvirus$GeneRatio = paste0(gp_modvirus$intersection_size, "/", gp_modvirus$query_size)
+gp_modvirus$BgRatio = paste0(gp_modvirus$term_size, "/", gp_modvirus$effective_domain_size)
+row.names(gp_modvirus) = gp_modvirus$ID
+names(gp_modvirus) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modvirus$geneID = gsub(",", "/", gp_modvirus$geneID)
+
+#define as compareClusterResult object
+gp_mod_clustervirus = new("compareClusterResult", compareClusterResult = gp_modvirus)
+
+#define as an enrichResult object
+gp_mod_enrichvirus = new("enrichResult", result = gp_modvirus)
+
+#plot
+#enrichplot::dotplot(gp_mod_clustervirus, font.size = 7, showCategory = 50)
+barplot(gp_mod_enrichvirus, order=TRUE, showCategory = 20, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+
+```
+```{r}
+#pathway analysis forIAV 37 v Mock 37 48
+
+sigresultsinfect = subset(resfluvmock4837, padj <0.05)
+upinfect = subset(sigresultsinfect, log2FoldChange > 5)
+downinfect = subset(sigresultsinfect, log2FoldChange < -5)
+
+gp_upinfect = gost(row.names(upinfect), organism ="hsapiens")
+gp_downinfect = gost(row.names(downinfect), organism = "hsapiens")
+
+#order by log2FC
+up_orderedinfect = upinfect[order(upinfect$log2FoldChange, decreasing = TRUE),]
+gp_upinfect_ordered = gost(row.names(up_orderedinfect), organism = "hsapiens", ordered_query = TRUE)
+head(gp_upinfect_ordered$result, 8)
+
+down_orderedinfect = downinfect[order(downinfect$log2FoldChange, decreasing = TRUE),]
+gp_downinfect_ordered = gost(row.names(down_orderedinfect), organism = "hsapiens", ordered_query = TRUE)
+head(gp_downinfect_ordered$result, 8)
+
+#gostplot(gp_upinfect_ordered, interactive = TRUE)
+#gostplot(gp_downinfect_ordered, interactive = TRUE)
+
+multi_gpinfect = gost(list("Higher in IAV 37 48HPI" = row.names(upinfect), "Higher in MOCK 37 48HPI" = row.names(downinfect)))
+p2infect = gostplot(multi_gpinfect, interactive = FALSE)
+#publish_gostplot(p2infect)
+
+#load additional packages
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+multi_gpinfect = gost(list("Higher in IAV 48HPI" = row.names(upinfect), "Higher in Mock 48HPI" = row.names(downinfect), multi_query= FALSE, evcodes = TRUE))
+
+gp_modinfect = multi_gpinfect$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modinfect$GeneRatio = paste0(gp_modinfect$intersection_size, "/", gp_modinfect$query_size)
+gp_modinfect$BgRatio = paste0(gp_modinfect$term_size, "/", gp_modinfect$effective_domain_size)
+row.names(gp_modinfect) = gp_modinfect$ID
+names(gp_modinfect) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modinfect$geneID = gsub(",", "/", gp_modinfect$geneID)
+
+#define as compareClusterResult object
+gp_mod_clusterinfect = new("compareClusterResult", compareClusterResult = gp_modinfect)
+
+#define as an enrichResult object
+gp_mod_enrichinfect = new("enrichResult", result = gp_modinfect)
+
+#plot
+#enrichplot::dotplot(gp_mod_clusterinfect, font.size = 7, showCategory = 50)
+barplot(gp_mod_enrichinfect, order=TRUE, showCategory = 20, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+
+#pathway analysis forIAV 37 v Mock 37 24
+
+sigresultsinfect = subset(resfluvmock2437, padj <0.05)
+upinfect = subset(sigresultsinfect, log2FoldChange > 5)
+downinfect = subset(sigresultsinfect, log2FoldChange < -5)
+
+gp_upinfect = gost(row.names(upinfect), organism ="hsapiens")
+gp_downinfect = gost(row.names(downinfect), organism = "hsapiens")
+
+#order by log2FC
+up_orderedinfect = upinfect[order(upinfect$log2FoldChange, decreasing = TRUE),]
+gp_upinfect_ordered = gost(row.names(up_orderedinfect), organism = "hsapiens", ordered_query = TRUE)
+head(gp_upinfect_ordered$result, 8)
+
+down_orderedinfect = downinfect[order(downinfect$log2FoldChange, decreasing = TRUE),]
+gp_downinfect_ordered = gost(row.names(down_orderedinfect), organism = "hsapiens", ordered_query = TRUE)
+head(gp_downinfect_ordered$result, 8)
+
+#gostplot(gp_upinfect_ordered, interactive = TRUE)
+#gostplot(gp_downinfect_ordered, interactive = TRUE)
+
+multi_gpinfect = gost(list("Higher in IAV 37 24HPI" = row.names(upinfect), "Higher in MOCK 37 24HPI" = row.names(downinfect)))
+p2infect = gostplot(multi_gpinfect, interactive = FALSE)
+#publish_gostplot(p2infect)
+
+#load additional packages
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+multi_gpinfect = gost(list("Higher in IAV 24HPI" = row.names(upinfect), "Higher in Mock 24HPI" = row.names(downinfect), multi_query= FALSE, evcodes = TRUE))
+
+gp_modinfect = multi_gpinfect$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_modinfect$GeneRatio = paste0(gp_modinfect$intersection_size, "/", gp_modinfect$query_size)
+gp_modinfect$BgRatio = paste0(gp_modinfect$term_size, "/", gp_modinfect$effective_domain_size)
+row.names(gp_modinfect) = gp_modinfect$ID
+names(gp_modinfect) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_modinfect$geneID = gsub(",", "/", gp_modinfect$geneID)
+
+#define as compareClusterResult object
+gp_mod_clusterinfect = new("compareClusterResult", compareClusterResult = gp_modinfect)
+
+#define as an enrichResult object
+gp_mod_enrichinfect = new("enrichResult", result = gp_modinfect)
+
+#plot
+#enrichplot::dotplot(gp_mod_clusterinfect, font.size = 7, showCategory = 50)
+barplot(gp_mod_enrichinfect, order=TRUE, showCategory = 20, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+```
+```{r}
+#trying the pathway analysis another way
+library(DOSE)
+library(enrichplot)
+
+p1 <- cnetplot(gp_mod_clustermock, categorySize= "pvalue")
+
+```
+```{r}
+#heatmpa of cytokine expression
+data <- read.csv("/Users/pekosz-lab/Desktop/Jess/tempfluvsars_MSD_combined.csv")
+head(data)
+data$Eotaxin <- as.numeric(data$Eotaxin)
+data$Eotaxin.3<- as.numeric(data$Eotaxin.3)
+data$IL8 <- as.numeric(data$IL8)
+data$IP.10 <- as.numeric(data$IP.10)
+data$MCP.1 <- as.numeric(data$MCP.1)
+data$MCP.4 <- as.numeric(data$MCP.4)
+data$MDC <- as.numeric(data$MDC)
+data$MIP.1a <- as.numeric(data$MIP.1a)
+data$MIP.1b <- as.numeric(data$MIP.1b)
+data$TARC <- as.numeric(data$TARC)
+d <- data.matrix(data)
+rownames(d) <- data[,1]
+d <- d[,-1]
+head(d)
+library("pheatmap")
+
+anotfile <- read.csv("fluvsarsmsdcoldata.csv")
+rownames(anotfile) <- anotfile$X
+anotfile <- anotfile[,-1]
+anotfile$temperature <- as.character(anotfile$temperature)
+anotfile$time <- as.character(anotfile$time)
+
+ann_colors = list(virus = c(IAV = "darkolivegreen1", MOCK = "dodgerblue3", SCV2 = "purple4"), temperature = c("37" = "#ff4949", "33" ="#0f4392"), time = c("48" = "#00203fff", "96" ="#adefd1ff"))
+
+#cluster by cytokine
+pheatmap(d, color= colorRampPalette(c("purple4", "white", "hotpink1"))(100), scale = "column", cellheight = 12, annotation_row=anotfile, annotation_colors = ann_colors, cluster_rows= FALSE, angle_col = 45)
+#cluster by sample
+pheatmap(d, color= colorRampPalette(c("purple4", "white", "hotpink1"))(100), scale = "column", cellheight = 12, annotation_row=anotfile, annotation_colors = ann_colors,cluster_cols= FALSE, angle_col = 45)
+#cluster by both
+pheatmap(d, color= colorRampPalette(c("purple4", "white", "hotpink1"))(100), scale = "column", cellheight = 12, annotation_row=anotfile, annotation_colors = ann_colors, angle_col = 45)
+```
+```{r}
+#see if transcriptional response to IAV and SCV2 is different or just delayed in SCV2 by comparing IAV 37 24 to SCV2 37 48
+
+#load additional packages
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+library(gprofiler2)
+
+resdelaytest <- results(dds,contrast=c("condition", "F2437", "S4837"))
+summary(resdelaytest)
+
+resdelaytest$hgnc_symbol <-genemap$hgnc_symbol[idx]
+resdelaytest$external_gene_name <- genemap$external_gene_name[idx]
+resdelaytest$description <- genemap$description[idx]
+
+delayup <- subset(resdelaytest, padj<0.05 & log2FoldChange>1.5)
+delaydown <- subset(resdelaytest, padj<0.05 & log2FoldChange< -1.5)
+
+write.csv(as.data.frame(resdelaytest), file = "delaytestiav24vscv248-37.csv")
+
+with(resdelaytest, plot(log2FoldChange, -log10(padj), pch=20, main = "IAV 24 v SCV2 48 at 37C", xlim=c(-20,20)))
+with(subset(resdelaytest, padj<0.05 & log2FoldChange>1.5), points(log2FoldChange, -log10(padj), pch=20, col ="red"))
+with(subset(resdelaytest, padj<0.05 & log2FoldChange< -1.5), points(log2FoldChange, -log10(padj), pch=20, col ="dark salmon"))
+abline(v=-1.5, col = "black", lwd = 3, lty = 2)
+abline(v=1.5, col = "black", lwd =3, lty =2)
+abline(h= -log10(0.05), col = "black", lwd = 3, lty =2)
+
+gp_updelay = gost(row.names(delayup), organism ="hsapiens")
+gp_downdelay = gost(row.names(delaydown), organism = "hsapiens")
+
+#order by log2FC
+up_ordereddelay = delayup[order(delayup$log2FoldChange, decreasing = TRUE),]
+gp_updelay_ordered = gost(row.names(up_ordereddelay), organism = "hsapiens", ordered_query = TRUE)
+head(gp_updelay_ordered$result, 8)
+
+down_ordereddelay = delaydown[order(delaydown$log2FoldChange, decreasing = TRUE),]
+gp_downdelay_ordered = gost(row.names(down_ordereddelay), organism = "hsapiens", ordered_query = TRUE)
+head(gp_downdelay_ordered$result, 8)
+
+
+multi_gpdelay = gost(list("Higher in IAV 37 24HPI" = row.names(delayup), "Higher in SCV2 37 48HPI" = row.names(delaydown)))
+p2delay = gostplot(multi_gpdelay, interactive = FALSE)
+publish_gostplot(p2delay)
+
+gostplot(multi_gpdelay, interactive = TRUE)
+
+multi_gpdelay = gost(list("Higher in IAV 24HPI 37" = row.names(delayup), "Higher in SCV2 48HPI 37" = row.names(delaydown), multi_query= FALSE, evcodes = TRUE))
+
+gp_moddelay = multi_gpdelay$result[ ,c("query", "source", "term_id", "term_name", "p_value", "query_size", "intersection_size", "term_size", "effective_domain_size", "significant")]
+gp_moddelay$GeneRatio = paste0(gp_moddelay$intersection_size, "/", gp_moddelay$query_size)
+gp_moddelay$BgRatio = paste0(gp_moddelay$term_size, "/", gp_moddelay$effective_domain_size)
+row.names(gp_moddelay) = gp_moddelay$ID
+names(gp_moddelay) = c( "Cluster", "Category", "ID", "Description", "p.adjust", "query_size", "Count", "term_size", "effective_domain_size", "geneID", "GeneRatio", "BgRatio")
+gp_moddelay$geneID = gsub(",", "/", gp_moddelay$geneID)
+
+#define as compareClusterResult object
+gp_mod_clusterdelay = new("compareClusterResult", compareClusterResult = gp_moddelay)
+
+#define as an enrichResult object
+gp_mod_enrichdelay = new("enrichResult", result = gp_moddelay)
+
+#plot
+#enrichplot::dotplot(gp_mod_clusterinfect, font.size = 7, showCategory = 50)
+barplot(gp_mod_enrichdelay, order=TRUE, showCategory = 30, font.size = 5, color = "p.adjust") +
+  viridis::scale_fill_viridis(option = "mako")+
+  ggplot2::facet_grid(~Cluster) 
+
+```
+
+```{r}
+#check if my data is similar to what is in literature
+#using data from GEO2R accession GSE48466 only mock and seasonal samples to compare to my IAV v mock
+setwd("/Users/pekosz-lab/Desktop/Jess/")
+
+mydata <- read.csv("fluvmock4833resultswithnames.csv")
+theirdata <- read.csv("GSE48466.top.table.csv")
+
+theirs <- data.frame(theirdata$Gene.symbol, theirdata$logFC)
+mine <- data.frame(mydata$hgnc_symbol, mydata$log2FoldChange)
+
+colnames(theirs) <- c("gene symbol", "log2FC")
+colnames(mine) <- c("gene symbol", "log2FC")
+
+theirs_test <- theirs
+theirs_test$`gene symbol`[theirs_test$`gene symbol` == ""] <- NA
+
+theirsclean <- na.omit(theirs_test)
+mineclean <- na.omit(mine)
+
+theirsclean <- theirsclean[order(theirsclean$log2FC),]
+mineclean <- mineclean[order(mineclean$log2FC),]
+
+#theirs1 <- head(theirsclean, 250)
+#mine1 <- head(mineclean, 250)
+theirs2 <- theirsclean
+
+theirs2$log2FC <- (theirs2$log2FC) * (-1)
+
+#this takes too long and too much memory
+total <- merge(mineclean, theirsclean, by = "gene symbol")
+#total1 <- merge(theirs1, mine1, by ="gene symbol")
+library(ggplot2)
+
+ggplot(total,aes(x= log2FC.x, y= log2FC.y)) + 
+  geom_point() + geom_smooth()
+
+total2 <- merge(mineclean,theirs2, by ="gene symbol")
+library(ggplot2)
+
+ggplot(total2,aes(x= log2FC.x, y= log2FC.y)) + 
+  geom_point() + geom_smooth()
+
+```
